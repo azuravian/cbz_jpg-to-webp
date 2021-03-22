@@ -8,6 +8,9 @@ from zipfile import ZipFile
 from PIL import Image
 from progressbar import ProgressBar
 
+root = Tk()
+root.withdraw()
+
 path = Path(filedialog.askdirectory())
 print('Creating list of comics to search.')
 file_list = [str(pp) for pp in path.glob("**/*.cbz")]
