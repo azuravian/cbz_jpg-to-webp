@@ -15,6 +15,7 @@ path = Path(filedialog.askdirectory())
 print('Creating list of comics to search.')
 file_list = [str(pp) for pp in path.glob("**/*.cbz")]
 jpg_list = []
+badfiles = []
 
 
 def Contents():
@@ -37,7 +38,10 @@ def convert_image(image_path, image_type):
 pbar = ProgressBar()
 print('Searching folder and subfolders for comics with jpg images.')
 for file in pbar(file_list):
-    MyZip = ZipFile(file)
+    try:
+        MyZip = ZipFile(file)
+    except:
+        badfiles.append(file)
     zipcontents = ZipFile.namelist(MyZip)
     if any('.jpg' in s for s in zipcontents):
         jpg_list.append(file)
@@ -75,3 +79,6 @@ for cbz in jpg_list:
 
     shutil.rmtree(temppath)
     shutil.move(NewZip, cbz)
+if len(badfiles) > 0:
+    for file in badfiles:
+        print(file)
