@@ -1,3 +1,4 @@
+import argparse
 import glob
 import os
 import shutil
@@ -8,10 +9,27 @@ from zipfile import ZipFile
 from PIL import Image
 from progressbar import ProgressBar
 
+my_parser = argparse.ArgumentParser(
+    description='Find and convert comics from jpg to webp')
+
+my_parser.add_argument('-b', '--backup', dest='backup',
+                       help='Make backup of each cbz to a specified folder', action='store_true')
+my_parser.add_argument('-s', '--small', dest='small',
+                       help='Keep smaller file', action='store_true')
+
+args = my_parser.parse_args()
+backup = args.backup
+small = args.small
+
+Image.MAX_IMAGE_PIXELS = None
 root = Tk()
 root.withdraw()
 
+print('Select folder to scan for eComics...')
 path = Path(filedialog.askdirectory())
+if backup:
+    print('Select folder to store backups...')
+    bupath = Path(filedialog.askdirectory())
 print('Creating list of comics to search.')
 file_list = [str(pp) for pp in path.glob("**/*.cbz")]
 jpg_list = []
@@ -45,12 +63,12 @@ print('Searching folder and subfolders for comics with jpg images.')
 for file in pbar(file_list):
     try:
         MyZip = ZipFile(file)
+        zipcontents = ZipFile.namelist(MyZip)
+        if any('.jpg' in s for s in zipcontents):
+            jpg_list.append(file)
     except:
         badfiles.append(file)
-    zipcontents = ZipFile.namelist(MyZip)
-    if any('.jpg' in s for s in zipcontents):
-        jpg_list.append(file)
-
+    
 print('Found ', str(len(jpg_list)), ' out of ', str(
     len(file_list)), ' comics with jpg images.')
 
@@ -60,7 +78,10 @@ for cbz in jpg_list:
     MyZip = ZipFile(cbz)
     NewZip = cbz + '.new'
     temppath = winapi_path(os.path.join(splitpath[0], 'temp'))
-    MyZip.extractall(path=temppath)
+    try:
+        MyZip.extractall(path=temppath)
+    except:
+        shutil.rmtree(temppath)
     
     for root, directory, files in os.walk(temppath):
         for file in files:
@@ -76,7 +97,11 @@ for cbz in jpg_list:
     pbar = ProgressBar()
     for image in pbar(images):
         if image.endswith('jpg') or image.endswith('jpeg'):
-            convert_image(image, 'jpg')
+            try: 
+                convert_image(image, 'jpg')
+            except:
+                badfiles.append(cbz)
+    
     # delete original images
     for file in images:
         path_to_file = os.path.join(temppath, file)
@@ -88,9 +113,22 @@ for cbz in jpg_list:
             for file in files:
                 f = os.path.join(root,file)
                 archive.write(f, os.path.relpath(f, temppath))
+    
+    if backup:
+        print('Saving backup of ', splitpath[1])
+        shutil.copy2(cbz, os.path.join(bupath, splitpath[1]))
+    
+    if small:
+        if os.path.getsize(NewZip) < os.path.getsize(cbz):
+            shutil.move(NewZip, cbz)
+        else:
+            os.remove(NewZip)
+    else:
+        shutil.move(NewZip, cbz)
 
     shutil.rmtree(temppath)
-    shutil.move(NewZip, cbz)
+    
 if len(badfiles) > 0:
+    print('Bad Zip Files:\n')
     for file in badfiles:
         print(file)
