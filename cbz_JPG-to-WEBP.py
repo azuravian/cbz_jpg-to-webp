@@ -61,7 +61,11 @@ for cbz in jpg_list:
     NewZip = cbz + '.new'
     temppath = winapi_path(os.path.join(splitpath[0], 'temp'))
     MyZip.extractall(path=temppath)
-
+    
+    for root, directory, files in os.walk(temppath):
+        for file in files:
+            if file.startswith('._'):
+                os.remove(os.path.join(root,file))
 
     # convert to webp
     images = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
