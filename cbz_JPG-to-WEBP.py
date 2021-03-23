@@ -19,9 +19,14 @@ badfiles = []
 
 
 def Contents():
-    contents = [os.path.join(temppath, f) for f in os.listdir(temppath)]
+    contents = [winapi_path(os.path.join(temppath, f)) for f in os.listdir(temppath)]
     return contents
 
+def winapi_path(dos_path, encoding=None):
+    path = os.path.abspath(dos_path)
+    if path.startswith(u"\\\\"):
+        return u"\\\\?\\UNC\\" + path[2:]
+    return u"\\\\?\\" + path
 
 def convert_image(image_path, image_type):
 
@@ -54,8 +59,9 @@ for cbz in jpg_list:
     print('Converting ', splitpath[1])
     MyZip = ZipFile(cbz)
     NewZip = cbz + '.new'
-    temppath = os.path.join(splitpath[0], 'temp')
+    temppath = winapi_path(os.path.join(splitpath[0], 'temp'))
     MyZip.extractall(path=temppath)
+
 
     # convert to webp
     images = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
@@ -72,10 +78,12 @@ for cbz in jpg_list:
         path_to_file = os.path.join(temppath, file)
         os.remove(path_to_file)
 
-    contents = Contents()
+    #contents = Contents()
     with ZipFile(NewZip, 'w') as archive:
-        for file in contents:
-            archive.write(file, os.path.basename(file))
+        for root, directory, files in os.walk(temppath):
+            for file in files:
+                f = os.path.join(root,file)
+                archive.write(f, os.path.relpath(f, temppath))
 
     shutil.rmtree(temppath)
     shutil.move(NewZip, cbz)
