@@ -6,7 +6,7 @@ Requires Python 3.
 
 Requires installation of PILLOW, tqdm, unrar:  
 Use the following to install:  
-```bash
+```
 pip install pillow  
 pip install tqdm
 pip install unrar
