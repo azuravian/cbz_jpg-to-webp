@@ -3,6 +3,7 @@ import glob
 import os
 import shutil
 import time
+import shelve
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
@@ -30,8 +31,31 @@ Image.MAX_IMAGE_PIXELS = None
 root = Tk()
 root.withdraw()
 
-print('Select folder to scan for eComics...')
-path = Path(filedialog.askdirectory())
+try:
+    with shelve.open('cpaths', 'c') as shelf:
+        path = shelf["path"]
+        pathdone = shelf["pathdone"]
+        pathbad = shelf["pathbad"]
+    
+except:
+    with shelve.open('cpaths', 'c') as shelf:
+        print('Select folder to scan for eComics...')
+        shelf["path"] = filedialog.askdirectory()
+        print('Select folder to place converted eComics...')
+        shelf["pathdone"] = filedialog.askdirectory()
+        print('Select folder to place corrupted eComics...')
+        shelf["pathbad"] = filedialog.askdirectory()
+        path = shelf["path"]
+        pathdone = shelf["pathdone"]
+        pathbad = shelf["pathbad"]
+
+path = Path(path)
+pathdone = Path(pathdone)
+pathbad = Path(pathbad)
+conv = os.path.basename(os.path.normpath(path))
+done = os.path.basename(os.path.normpath(pathdone))
+bad = os.path.basename(os.path.normpath(pathbad))
+
 if backup:
     print('Select folder to store backups...')
     bupath = Path(filedialog.askdirectory())
@@ -95,26 +119,29 @@ for file in tqdm(file_list, desc='Searching comics', colour='green'):
         
     if ('.cbr' in file) or ('.rar' in file):
         try:
-            MyRar = rarfile.RarFile(file)
-            
-            rarcontents = MyRar.namelist()
-            rarcontents = [x.lower() for x in rarcontents]
-            if any('.jpg' in s for s in rarcontents) or any('.png' in s for s in rarcontents) or any('.jpeg' in s for s in rarcontents):
-                jpg_list.append(file)
-            else:
-                nojpg.append(file)
-            MyRar.close()
-        except:
+            with rarfile.RarFile(file) as MyRar:
+                rarcontents = MyRar.namelist()
+                rarcontents = [x.lower() for x in rarcontents]
+                if any('.jpg' in s for s in rarcontents) or any('.png' in s for s in rarcontents) or any('.jpeg' in s for s in rarcontents):
+                    jpg_list.append(file)
+                else:
+                    nojpg.append(file)
+        except (rarfile.BadRarFile):
             badfiles.append(file)
+        except:
+            continue
 
 if len(badfiles) > 0:
-    print('Bad Zip Files:\n')
-    for file in badfiles:
-        print(file)   
+    print('Moving ', len(badfiles), ' bad archives to "Bad Files":\n')
+    for zfile in badfiles:
+        nfile = zfile.replace(conv, bad)
+        shutil.move(zfile, nfile)
+badfiles = []
+
 if len(nojpg) > 0:
-    print('Moving ', len(nojpg), ' comics to Done folder.')
+    print('Moving ', len(nojpg), ' comics to complete folder.')
     for zfile in nojpg:
-        nfile = zfile.replace('Convert', 'Done')
+        nfile = zfile.replace(conv, done)
         shutil.move(zfile, nfile)
 
 print('Found ', str(len(jpg_list)), ' out of ', str(
@@ -222,7 +249,7 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
             arc = arc.replace('.cbr', '.cbz')
         if arc.endswith('rar'):
             arc = arc.replace('.rar', '.cbz')
-        arc = arc.replace('Convert', 'Done')
+        arc = arc.replace(conv, done)
         shutil.move(NewZip, arc)
 
     shutil.rmtree(temppath)
