@@ -25,7 +25,10 @@ my_parser.add_argument('-m', '--maxsize', dest='maxsize',
 args = my_parser.parse_args()
 backup = args.backup
 small = args.small
-maxsize = (int(args.maxsize), int(args.maxsize))
+try:
+    maxsize = (int(args.maxsize), int(args.maxsize))
+except:
+    pass
 
 Image.MAX_IMAGE_PIXELS = None
 root = Tk()
