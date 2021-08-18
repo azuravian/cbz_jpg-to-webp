@@ -25,6 +25,7 @@ my_parser.add_argument('-m', '--maxsize', dest='maxsize',
 args = my_parser.parse_args()
 backup = args.backup
 small = args.small
+maxsize = ''
 try:
     maxsize = (int(args.maxsize), int(args.maxsize))
 except:
@@ -85,8 +86,11 @@ def winapi_path(dos_path, encoding=None):
 
 def convert_image(image_path, image_type):
 
-    im = Image.open(image_path)
-    im = im.convert('RGB')
+    try:
+        im = Image.open(image_path)
+        im = im.convert('RGB')
+    except:
+        return
     
     if image_type == 'jpg':
         image_name = image_path.replace('.jpg', '.webp')
@@ -96,11 +100,21 @@ def convert_image(image_path, image_type):
         image_name = image_path.replace('.png', '.webp')
     
     if image_type in ['jpg', 'png', 'jpeg']:
-        if maxsize:
-            im.thumbnail(maxsize)
-        im.save(f"{image_name}", 'webp')
+        if maxsize != '':
+            try:
+                im.thumbnail(maxsize)
+                im.save(f"{image_name}", 'webp')
+            except:
+                return
+        else:
+            try:       
+                im.save(f"{image_name}", 'webp')
+            except:
+                return
     else:
         print('Images are not of type jpg or png.')
+    
+
 
 
 #Check Files for JPG or PNG images
@@ -201,21 +215,14 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
         continue
     for image in tqdm(images, desc='Converting Images', colour='yellow'):
         if image.endswith('jpg'):
-            try:
-                convert_image(image, 'jpg')
-            except:
-                badfiles.append(arc)
+            convert_image(image, 'jpg')
+            
         if image.endswith('jpeg'):
-            try:
-                convert_image(image, 'jpeg')
-            except:
-                badfiles.append(arc)
+            convert_image(image, 'jpeg')
+            
         if image.endswith('png'):
-            try:
-                convert_image(image, 'png')
-            except:
-                badfiles.append(arc)
-
+            convert_image(image, 'png')
+            
     # delete original images
     for file in images:
         path_to_file = os.path.join(temppath, file)
