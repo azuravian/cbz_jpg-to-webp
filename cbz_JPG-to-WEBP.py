@@ -4,6 +4,7 @@ import os
 import shutil
 import time
 import shelve
+import sys
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
@@ -91,62 +92,136 @@ def convert_image(image_path, image_type):
         im = im.convert('RGB')
     except:
         return
-    
-    if image_type == 'jpg':
-        image_name = image_path.replace('.jpg', '.webp')
-    if image_type == 'jpeg':
-        image_name = image_path.replace('.jpeg', '.webp')
-    if image_type == 'png':
-        image_name = image_path.replace('.png', '.webp')
+
+    image_name = image_path.replace(image_type, 'webp')
     
     if image_type in ['jpg', 'png', 'jpeg']:
-        if maxsize != '':
-            try:
+        try:
+            if maxsize != '':
                 im.thumbnail(maxsize)
-                im.save(f"{image_name}", 'webp')
-            except:
-                return
-        else:
-            try:       
-                im.save(f"{image_name}", 'webp')
-            except:
-                return
+            im.save(f"{image_name}", 'webp')
+        except:
+            return
     else:
         print('Images are not of type jpg or png.')
     
-
-
-
-#Check Files for JPG or PNG images
-for file in tqdm(file_list, desc='Searching comics', colour='green'):
-    if ('.cbz' in file) or ('.zip' in file):
-        try:
-            MyZip = ZipFile(file)
+def isjpg(zipcontents):
+    ziplength = len(zipcontents) - 1
+    extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
+    return any(
+        zipcontents[i].endswith(extensions)
+        for i in range(ziplength)
+    )
         
+#Check Files for JPG or PNG images
+def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
+    try:
+        with ZipFile(file) as MyZip:
             zipcontents = MyZip.namelist()
-            zipcontents = [x.lower() for x in zipcontents]
-            if any('.jpg' in s for s in zipcontents) or any('.png' in s for s in zipcontents) or any('.jpeg' in s for s in zipcontents):
+            if isjpg(zipcontents):
                 jpg_list.append(file)
             else:
                 nojpg.append(file)
-            MyZip.close()
-        except:
-            badfiles.append(file)
-        
+    except:
+        badfiles.append(file)
+
+def check_rar(jpg_list, badfiles, nojpg, isjpg, file):
+    try:
+        with rarfile.RarFile(file) as MyRar:
+            rarcontents = MyRar.namelist()
+            if isjpg(rarcontents):
+                jpg_list.append(file)
+            else:
+                nojpg.append(file)
+    except (rarfile.BadRarFile):
+        badfiles.append(file)
+    except:
+        pass
+
+def smaller(arc, NewZip):
+    if os.path.getsize(NewZip) < os.path.getsize(arc):
+        if arc.endswith('cbr'):
+            arc = arc.replace('.cbr', '.cbz')
+        if arc.endswith('rar'):
+            arc = arc.replace('.rar', '.cbz')
+        shutil.move(NewZip, arc)
+    else:
+        os.remove(NewZip)
+    return arc
+
+def larger(conv, done, arc, NewZip):
+    os.remove(arc)
+    if arc.endswith('cbr'):
+        arc = arc.replace('.cbr', '.cbz')
+    if arc.endswith('rar'):
+        arc = arc.replace('.rar', '.cbz')
+    arc = arc.replace(conv, done)
+    shutil.move(NewZip, arc)
+
+def imgs(temppath):
+    jpgimages = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
+    jpegimages = [str(pp) for pp in Path(temppath).glob("**/*.jpeg")]
+    pngimages = [str(pp) for pp in Path(temppath).glob("**/*.png")]
+    return jpgimages + pngimages + jpegimages
+
+def paths(winapi_path, arc):
+    splitpath = os.path.split(arc)
+    temppath = winapi_path(os.path.join(splitpath[0], 'temp'))
+    return splitpath,temppath
+
+def extract_zip(arc, temppath):
+    MyArc = ZipFile(arc)
+    NewZip = arc + '.new'
+        #try:
+            #MyArc.extractall(path=temppath)
+        #except:
+            #shutil.rmtree(temppath)
+    with MyArc as zf:
+        for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
+            try:
+                zf.extract(member, temppath)
+            except MyArc.error as e:
+                pass
+    return NewZip
+
+def extract_rar(arc, splitpath, temppath):
+    MyNewRar = rarfile.RarFile(arc)
+    if arc.endswith('cbr'):
+        NewZip = arc.replace('.cbr', '.cbz') + '.new'
+    if arc.endswith('rar'):
+        NewZip = arc.replace('.rar', '.cbz') + '.new'
+    rarpath = os.path.join(splitpath[0], 'temp')
+    os.mkdir(rarpath)
+        #patoolib.extract_archive(
+        #    arc, outdir=rarpath, verbosity=-1)
+    with MyNewRar as zf:
+        for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
+            try:
+                zf.extract(member, path=temppath)
+            except:
+                pass
+    return NewZip
+
+def lower(root, files):
+    for file in files:
+        if file.startswith('._'):
+            os.remove(os.path.join(root, file))
+        elif file.endswith('JPG') or file.endswith('JPEG'):
+            os.rename(os.path.join(root, file), os.path.join(root, file.lower()))
+
+def create_arc(temppath, archive):
+    for root, _, files in os.walk(temppath):
+        for file in tqdm(files, desc='Compressing', colour='cyan', leave=False):
+            f = os.path.join(root, file)
+            archive.write(f, os.path.relpath(f, temppath))
+
+for file in tqdm(file_list, desc='Searching comics', colour='green'):
+    if ('.cbz' in file) or ('.zip' in file):
+        check_zip(jpg_list, badfiles, nojpg, isjpg, file)
         
     if ('.cbr' in file) or ('.rar' in file):
-        try:
-            with rarfile.RarFile(file) as MyRar:
-                rarcontents = MyRar.namelist()
-                rarcontents = [x.lower() for x in rarcontents]
-                if any('.jpg' in s for s in rarcontents) or any('.png' in s for s in rarcontents) or any('.jpeg' in s for s in rarcontents):
-                    jpg_list.append(file)
-                else:
-                    nojpg.append(file)
-        except (rarfile.BadRarFile):
-            badfiles.append(file)
-        except:
-            continue
+        check_rar(jpg_list, badfiles, nojpg, isjpg, file)
+        
 
 if len(badfiles) > 0:
     print('Moving ', len(badfiles), ' bad archives to "Bad Files":\n')
@@ -166,54 +241,21 @@ print('Found ', str(len(jpg_list)), ' out of ', str(
 
 #Process Archives in jpg_list
 for arc in tqdm(jpg_list, desc='All Files', colour='green'):
-    splitpath = os.path.split(arc)
-    temppath = winapi_path(os.path.join(splitpath[0], 'temp'))
+    splitpath, temppath = paths(winapi_path, arc)
     if arc.endswith('cbz') or arc.endswith('zip'):
-        MyArc = ZipFile(arc)
-        NewZip = arc + '.new'
-        #try:
-            #MyArc.extractall(path=temppath)
-        #except:
-            #shutil.rmtree(temppath)
-        with MyArc as zf:
-            for member in tqdm(zf.namelist(), desc='Extracting', colour='blue'):
-                try:
-                    zf.extract(member, temppath)
-                except MyArc.error as e:
-                    pass
+        NewZip = extract_zip(arc, temppath)
     if arc.endswith('cbr') or arc.endswith('rar'):
-        MyNewRar = rarfile.RarFile(arc)
-        if arc.endswith('cbr'):
-            NewZip = arc.replace('.cbr', '.cbz') + '.new'
-        if arc.endswith('rar'):
-            NewZip = arc.replace('.rar', '.cbz') + '.new'
-        rarpath = os.path.join(splitpath[0], 'temp')
-        os.mkdir(rarpath)
-        #patoolib.extract_archive(
-        #    arc, outdir=rarpath, verbosity=-1)
-        with MyNewRar as zf:
-            for member in tqdm(zf.namelist(), desc='Extracting', colour='blue'):
-                try:
-                    zf.extract(member, path=temppath)
-                except:
-                    pass
+        NewZip = extract_rar(arc, splitpath, temppath)
     for root, directory, files in os.walk(temppath):
-        for file in files:
-            if file.startswith('._'):
-                os.remove(os.path.join(root, file))
-            elif file.endswith('JPG') or file.endswith('JPEG'):
-                os.rename(os.path.join(root, file), os.path.join(root, file.lower()))
+        lower(root, files)
 
     # convert to webp
-    jpgimages = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
-    jpegimages = [str(pp) for pp in Path(temppath).glob("**/*.jpeg")]
-    pngimages = [str(pp) for pp in Path(temppath).glob("**/*.png")]
-    images = jpgimages + pngimages + jpegimages
+    images = imgs(temppath)
     if not images:
         print('No images to convert')
         #shutil.rmtree(temppath)
         continue
-    for image in tqdm(images, desc='Converting Images', colour='yellow'):
+    for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False):
         if image.endswith('jpg'):
             convert_image(image, 'jpg')
             
@@ -230,39 +272,20 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
 
     #contents = Contents()
     with ZipFile(NewZip, 'w') as archive:
-        for root, directory, files in os.walk(temppath):
-            for file in tqdm(files, desc='Compressing', colour='cyan'):
-                f = os.path.join(root, file)
-                archive.write(f, os.path.relpath(f, temppath))
+        create_arc(temppath, archive)
 
-    print('Cleaning up...')
+    print('\nCleaning up...')
     if backup:
         print('Saving backup of ', splitpath[1])
         shutil.copy2(arc, os.path.join(bupath, splitpath[1]))
 
-    if 'MyArc' in locals():
-        MyArc.close()
-
-        
     if small:
-        if os.path.getsize(NewZip) < os.path.getsize(arc):
-            if arc.endswith('cbr'):
-                arc = arc.replace('.cbr', '.cbz')
-            if arc.endswith('rar'):
-                arc = arc.replace('.rar', '.cbz')
-            shutil.move(NewZip, arc)
-        else:
-            os.remove(NewZip)
+        arc = smaller(arc, NewZip)
     else:
-        os.remove(arc)
-        if arc.endswith('cbr'):
-            arc = arc.replace('.cbr', '.cbz')
-        if arc.endswith('rar'):
-            arc = arc.replace('.rar', '.cbz')
-        arc = arc.replace(conv, done)
-        shutil.move(NewZip, arc)
+        larger(conv, done, arc, NewZip)
 
     shutil.rmtree(temppath)
-    time.sleep(5)
+    time.sleep(3)
+    print("\033[A                        \033[F\033[F\033[F")
 
 
