@@ -112,7 +112,7 @@ def isjpg(zipcontents):
         zipcontents[i].endswith(extensions)
         for i in range(ziplength)
     )
-        
+
 #Check Files for JPG or PNG images
 def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
     try:
@@ -123,7 +123,20 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
             else:
                 nojpg.append(file)
     except:
-        badfiles.append(file)
+        try:
+            with rarfile.RarFile(file) as MyRar:
+                rarcontents = MyRar.namelist()
+                if isjpg(rarcontents):
+                    renfile = file.replace(".cbz", ".cbr")
+                    jpg_list.append(renfile)
+                    shutil.move(file, renfile)
+                else:
+                    nojpg.append(file)
+        except (rarfile.BadRarFile):
+            badfiles.append(file)
+        except:
+            pass
+    
 
 def check_rar(jpg_list, badfiles, nojpg, isjpg, file):
     try:
@@ -287,5 +300,3 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     shutil.rmtree(temppath)
     time.sleep(3)
     print("\033[A                        \033[F\033[F\033[F")
-
-
