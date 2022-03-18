@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import glob
 import os
 import shutil
@@ -41,7 +42,7 @@ try:
         path = shelf["path"]
         pathdone = shelf["pathdone"]
         pathbad = shelf["pathbad"]
-    
+
 except:
     with shelve.open('cpaths', 'c') as shelf:
         print('Select folder to scan for eComics...')
@@ -82,8 +83,8 @@ def Contents():
 def winapi_path(dos_path, encoding=None):
     path = os.path.abspath(dos_path)
     if path.startswith(u"\\\\"):
-        return u"\\\\?\\UNC\\" + path[2:]
-    return u"\\\\?\\" + path
+        return f"\\\\?\\UNC\\{path[2:]}"
+    return f"\\\\?\\{path}"
 
 def convert_image(image_path, image_type):
 
@@ -184,17 +185,11 @@ def paths(winapi_path, arc):
 
 def extract_zip(arc, temppath):
     MyArc = ZipFile(arc)
-    NewZip = arc + '.new'
-        #try:
-            #MyArc.extractall(path=temppath)
-        #except:
-            #shutil.rmtree(temppath)
+    NewZip = f'{arc}.new'
     with MyArc as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
-            try:
+            with contextlib.suppress(MyArc.error):
                 zf.extract(member, temppath)
-            except MyArc.error as e:
-                pass
     return NewZip
 
 def extract_rar(arc, splitpath, temppath):
@@ -231,10 +226,10 @@ def create_arc(temppath, archive):
 for file in tqdm(file_list, desc='Searching comics', colour='green'):
     if ('.cbz' in file) or ('.zip' in file):
         check_zip(jpg_list, badfiles, nojpg, isjpg, file)
-        
+
     if ('.cbr' in file) or ('.rar' in file):
         check_rar(jpg_list, badfiles, nojpg, isjpg, file)
-        
+
 
 if len(badfiles) > 0:
     print('Moving ', len(badfiles), ' bad archives to "Bad Files":\n')
@@ -249,8 +244,14 @@ if len(nojpg) > 0:
         nfile = zfile.replace(conv, done)
         shutil.move(zfile, nfile)
 
-print('Found ', str(len(jpg_list)), ' out of ', str(
-    len(file_list)), ' comics with jpg images.')
+print(
+    'Found ',
+    len(jpg_list),
+    ' out of ',
+    len(file_list),
+    ' comics with jpg images.',
+)
+
 
 #Process Archives in jpg_list
 for arc in tqdm(jpg_list, desc='All Files', colour='green'):
@@ -271,13 +272,13 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False):
         if image.endswith('jpg'):
             convert_image(image, 'jpg')
-            
+
         if image.endswith('jpeg'):
             convert_image(image, 'jpeg')
-            
+
         if image.endswith('png'):
             convert_image(image, 'png')
-            
+
     # delete original images
     for file in images:
         path_to_file = os.path.join(temppath, file)
@@ -300,3 +301,5 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     shutil.rmtree(temppath)
     time.sleep(3)
     print("\033[A                        \033[F\033[F\033[F")
+
+
