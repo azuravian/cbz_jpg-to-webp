@@ -188,8 +188,10 @@ def extract_zip(arc, temppath):
     NewZip = f'{arc}.new'
     with MyArc as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
-            with contextlib.suppress(MyArc.error):
+            try:
                 zf.extract(member, temppath)
+            except:
+                pass
     return NewZip
 
 def extract_rar(arc, splitpath, temppath):
