@@ -28,11 +28,8 @@ args = my_parser.parse_args()
 backup = args.backup
 small = args.small
 maxsize = ''
-try:
+with contextlib.suppress(Exception):
     maxsize = (int(args.maxsize), int(args.maxsize))
-except:
-    pass
-
 Image.MAX_IMAGE_PIXELS = None
 root = Tk()
 root.withdraw()
@@ -43,7 +40,7 @@ try:
         pathdone = shelf["pathdone"]
         pathbad = shelf["pathbad"]
 
-except:
+except Exception:
     with shelve.open('cpaths', 'c') as shelf:
         print('Select folder to scan for eComics...')
         shelf["path"] = filedialog.askdirectory()
@@ -91,17 +88,17 @@ def convert_image(image_path, image_type):
     try:
         im = Image.open(image_path)
         im = im.convert('RGB')
-    except:
+    except Exception:
         return
 
     image_name = image_path.replace(image_type, 'webp')
-    
+
     if image_type in ['jpg', 'png', 'jpeg']:
         try:
             if maxsize != '':
                 im.thumbnail(maxsize)
             im.save(f"{image_name}", 'webp')
-        except:
+        except Exception:
             return
     else:
         print('Images are not of type jpg or png.')
@@ -123,7 +120,7 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
                 jpg_list.append(file)
             else:
                 nojpg.append(file)
-    except:
+    except Exception:
         try:
             with rarfile.RarFile(file) as MyRar:
                 rarcontents = MyRar.namelist()
@@ -135,7 +132,7 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
                     nojpg.append(file)
         except (rarfile.BadRarFile):
             badfiles.append(file)
-        except:
+        except Exception:
             pass
     
 
@@ -149,7 +146,7 @@ def check_rar(jpg_list, badfiles, nojpg, isjpg, file):
                 nojpg.append(file)
     except (rarfile.BadRarFile):
         badfiles.append(file)
-    except:
+    except Exception:
         pass
 
 def smaller(arc, NewZip):
@@ -188,10 +185,8 @@ def extract_zip(arc, temppath):
     NewZip = f'{arc}.new'
     with MyArc as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
-            try:
+            with contextlib.suppress(Exception):
                 zf.extract(member, temppath)
-            except:
-                pass
     return NewZip
 
 def extract_rar(arc, splitpath, temppath):
@@ -206,10 +201,8 @@ def extract_rar(arc, splitpath, temppath):
         #    arc, outdir=rarpath, verbosity=-1)
     with MyNewRar as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
-            try:
+            with contextlib.suppress(Exception):
                 zf.extract(member, path=temppath)
-            except:
-                pass
     return NewZip
 
 def lower(root, files):
