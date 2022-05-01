@@ -79,9 +79,12 @@ def Contents():
 
 def winapi_path(dos_path, encoding=None):
     path = os.path.abspath(dos_path)
-    if path.startswith(u"\\\\"):
-        return f"\\\\?\\UNC\\{path[2:]}"
-    return f"\\\\?\\{path}"
+
+    if platform.system() == "Windows":
+        if path.startswith(u"\\\\"):
+            return f"\\\\?\\UNC\\{path[2:]}"
+        return f"\\\\?\\{path}"
+    return path
 
 def convert_image(image_path, image_type):
 
