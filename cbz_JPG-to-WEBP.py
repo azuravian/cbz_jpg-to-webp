@@ -5,7 +5,7 @@ import os
 import shutil
 import time
 import shelve
-import sys
+import platform
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
@@ -93,7 +93,7 @@ def convert_image(image_path, image_type):
 
     image_name = image_path.replace(image_type, 'webp')
 
-    if image_type in ['jpg', 'png', 'jpeg']:
+    if image_type in ['jpg', 'png', 'jpeg', 'gif']:
         try:
             if maxsize != '':
                 im.thumbnail(maxsize)
@@ -101,11 +101,11 @@ def convert_image(image_path, image_type):
         except Exception:
             return
     else:
-        print('Images are not of type jpg or png.')
+        print('Images are not of type jpg, png or gif.')
     
 def isjpg(zipcontents):
     ziplength = len(zipcontents) - 1
-    extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
+    extensions = ('.jpg', '.jpeg', '.png', '.gif')
     return any(
         zipcontents[i].endswith(extensions)
         for i in range(ziplength)
@@ -116,6 +116,7 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
     try:
         with ZipFile(file) as MyZip:
             zipcontents = MyZip.namelist()
+            zipcontents = [x.lower() for x in zipcontents]
             if isjpg(zipcontents):
                 jpg_list.append(file)
             else:
@@ -124,6 +125,7 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
         try:
             with rarfile.RarFile(file) as MyRar:
                 rarcontents = MyRar.namelist()
+                rarcontents = [x.lower() for x in rarcontents]
                 if isjpg(rarcontents):
                     renfile = file.replace(".cbz", ".cbr")
                     jpg_list.append(renfile)
@@ -173,7 +175,8 @@ def imgs(temppath):
     jpgimages = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
     jpegimages = [str(pp) for pp in Path(temppath).glob("**/*.jpeg")]
     pngimages = [str(pp) for pp in Path(temppath).glob("**/*.png")]
-    return jpgimages + pngimages + jpegimages
+    gifimages = [str(pp) for pp in Path(temppath).glob("**/*.gif")]
+    return jpgimages + pngimages + jpegimages + gifimages
 
 def paths(winapi_path, arc):
     splitpath = os.path.split(arc)
@@ -209,7 +212,7 @@ def lower(root, files):
     for file in files:
         if file.startswith('._'):
             os.remove(os.path.join(root, file))
-        elif file.endswith('JPG') or file.endswith('JPEG'):
+        else:
             os.rename(os.path.join(root, file), os.path.join(root, file.lower()))
 
 def create_arc(temppath, archive):
@@ -273,6 +276,9 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
 
         if image.endswith('png'):
             convert_image(image, 'png')
+
+        if image.endswith('gif'):
+            convert_image(image, 'gif')
 
     # delete original images
     for file in images:
