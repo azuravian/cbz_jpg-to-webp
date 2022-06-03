@@ -305,5 +305,3 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     shutil.rmtree(temppath)
     time.sleep(3)
     print("\033[A                        \033[F\033[F\033[F")
-
-
