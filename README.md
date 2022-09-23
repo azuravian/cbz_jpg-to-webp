@@ -3,8 +3,8 @@ Convert cbz files that contain jpg or png images to webp images.
 
 Dependencies:
 Requires Python 3.
-Linux users may need to install unrardll and tk for python:
-Use the following to install:
+Linux users may need to install unrardll and tk for python.
+Use the appropriate package manager for your distro (example below for Linux Mint):
 ```
 sudo apt install python3-tk
 sudo apt install python3-unrardll
