@@ -5,7 +5,7 @@ import os
 import shutil
 import time
 import shelve
-import platform
+import sys
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
@@ -79,12 +79,9 @@ def Contents():
 
 def winapi_path(dos_path, encoding=None):
     path = os.path.abspath(dos_path)
-
-    if platform.system() == "Windows":
-        if path.startswith(u"\\\\"):
-            return f"\\\\?\\UNC\\{path[2:]}"
-        return f"\\\\?\\{path}"
-    return path
+    if path.startswith(u"\\\\"):
+        return f"\\\\?\\UNC\\{path[2:]}"
+    return f"\\\\?\\{path}"
 
 def convert_image(image_path, image_type):
 
@@ -95,8 +92,8 @@ def convert_image(image_path, image_type):
         return
 
     image_name = image_path.replace(image_type, 'webp')
-
-    if image_type in ['jpg', 'png', 'jpeg', 'gif']:
+    
+    if image_type in ['jpg', 'png', 'jpeg']:
         try:
             if maxsize != '':
                 im.thumbnail(maxsize)
@@ -104,11 +101,11 @@ def convert_image(image_path, image_type):
         except Exception:
             return
     else:
-        print('Images are not of type jpg, png or gif.')
+        print('Images are not of type jpg or png.')
     
 def isjpg(zipcontents):
     ziplength = len(zipcontents) - 1
-    extensions = ('.jpg', '.jpeg', '.png', '.gif')
+    extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
     return any(
         zipcontents[i].endswith(extensions)
         for i in range(ziplength)
@@ -119,7 +116,6 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
     try:
         with ZipFile(file) as MyZip:
             zipcontents = MyZip.namelist()
-            zipcontents = [x.lower() for x in zipcontents]
             if isjpg(zipcontents):
                 jpg_list.append(file)
             else:
@@ -128,7 +124,6 @@ def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
         try:
             with rarfile.RarFile(file) as MyRar:
                 rarcontents = MyRar.namelist()
-                rarcontents = [x.lower() for x in rarcontents]
                 if isjpg(rarcontents):
                     renfile = file.replace(".cbz", ".cbr")
                     jpg_list.append(renfile)
@@ -178,8 +173,7 @@ def imgs(temppath):
     jpgimages = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
     jpegimages = [str(pp) for pp in Path(temppath).glob("**/*.jpeg")]
     pngimages = [str(pp) for pp in Path(temppath).glob("**/*.png")]
-    gifimages = [str(pp) for pp in Path(temppath).glob("**/*.gif")]
-    return jpgimages + pngimages + jpegimages + gifimages
+    return jpgimages + pngimages + jpegimages
 
 def paths(winapi_path, arc):
     splitpath = os.path.split(arc)
@@ -203,8 +197,6 @@ def extract_rar(arc, splitpath, temppath):
         NewZip = arc.replace('.rar', '.cbz') + '.new'
     rarpath = os.path.join(splitpath[0], 'temp')
     os.mkdir(rarpath)
-        #patoolib.extract_archive(
-        #    arc, outdir=rarpath, verbosity=-1)
     with MyNewRar as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
             with contextlib.suppress(Exception):
@@ -215,7 +207,7 @@ def lower(root, files):
     for file in files:
         if file.startswith('._'):
             os.remove(os.path.join(root, file))
-        else:
+        elif file.endswith('JPG') or file.endswith('JPEG'):
             os.rename(os.path.join(root, file), os.path.join(root, file.lower()))
 
 def create_arc(temppath, archive):
@@ -280,9 +272,6 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
         if image.endswith('png'):
             convert_image(image, 'png')
 
-        if image.endswith('gif'):
-            convert_image(image, 'gif')
-
     # delete original images
     for file in images:
         path_to_file = os.path.join(temppath, file)
@@ -304,4 +293,4 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
 
     shutil.rmtree(temppath)
     time.sleep(3)
-    print("\033[A                        \033[F\033[F\033[F")
+    print("\033[A\033[K\033[A\033[K\033[A")
