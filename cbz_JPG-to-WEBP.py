@@ -293,4 +293,4 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
 
     shutil.rmtree(temppath)
     time.sleep(3)
-    print("\033[A\033[K\033[A\033[K\033[A")
+    print("\033[A\033[K\033[A\033[K\033[A") #make out loop stay in a single tqdm line
