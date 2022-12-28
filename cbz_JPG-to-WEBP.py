@@ -1,11 +1,9 @@
 import argparse
 import contextlib
-import glob
 import os
 import shutil
 import time
 import shelve
-import sys
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
@@ -22,7 +20,7 @@ my_parser.add_argument('-b', '--backup', dest='backup',
 my_parser.add_argument('-s', '--small', dest='small',
                        help='Keep smaller file', action='store_true')
 my_parser.add_argument('-m', '--maxsize', dest='maxsize',
-                       help='Keep smaller file', action='store')                       
+                       help='Keep smaller file', action='store')
 
 args = my_parser.parse_args()
 backup = args.backup
@@ -40,7 +38,7 @@ try:
         pathdone = shelf["pathdone"]
         pathbad = shelf["pathbad"]
 
-except Exception:
+except KeyError:
     with shelve.open('cpaths', 'c') as shelf:
         print('Select folder to scan for eComics...')
         shelf["path"] = filedialog.askdirectory()
@@ -77,11 +75,11 @@ def Contents():
     return [winapi_path(os.path.join(temppath, f)) for f in os.listdir(temppath)]
 
 
-def winapi_path(dos_path, encoding=None):
-    path = os.path.abspath(dos_path)
-    if path.startswith(u"\\\\"):
-        return f"\\\\?\\UNC\\{path[2:]}"
-    return f"\\\\?\\{path}"
+def winapi_path(dos_path):
+    wpath = os.path.abspath(dos_path)
+    if wpath.startswith("\\\\"):
+        return f"\\\\?\\UNC\\{wpath[2:]}"
+    return f"\\\\?\\{wpath}"
 
 def convert_image(image_path, image_type):
 
@@ -92,7 +90,7 @@ def convert_image(image_path, image_type):
         return
 
     image_name = image_path.replace(image_type, 'webp')
-    
+
     if image_type in ['jpg', 'png', 'jpeg']:
         try:
             if maxsize != '':
@@ -102,7 +100,7 @@ def convert_image(image_path, image_type):
             return
     else:
         print('Images are not of type jpg or png.')
-    
+
 def isjpg(zipcontents):
     ziplength = len(zipcontents) - 1
     extensions = ('.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG')
@@ -112,117 +110,128 @@ def isjpg(zipcontents):
     )
 
 #Check Files for JPG or PNG images
-def check_zip(jpg_list, badfiles, nojpg, isjpg, file):
+def check_zip(jpl, bf, noj, f):
     try:
-        with ZipFile(file) as MyZip:
+        with ZipFile(f) as MyZip:
             zipcontents = MyZip.namelist()
-            if isjpg(zipcontents):
-                jpg_list.append(file)
-            else:
-                nojpg.append(file)
+        if isjpg(zipcontents):
+            jpl.append(f)
+        else:
+            noj.append(f)
     except Exception:
         try:
-            with rarfile.RarFile(file) as MyRar:
+            with rarfile.RarFile(f) as MyRar:
                 rarcontents = MyRar.namelist()
-                if isjpg(rarcontents):
-                    renfile = file.replace(".cbz", ".cbr")
-                    jpg_list.append(renfile)
-                    shutil.move(file, renfile)
-                else:
-                    nojpg.append(file)
-        except (rarfile.BadRarFile):
-            badfiles.append(file)
+            if isjpg(rarcontents):
+                renfile = f.replace(".cbz", ".cbr")
+                jpl.append(renfile)
+                os.rename(f, renfile)
+            else:
+                noj.append(f)
+        except rarfile.BadRarFile:
+            bf.append(f)
         except Exception:
             pass
-    
+    return jpl, bf, noj, f
 
-def check_rar(jpg_list, badfiles, nojpg, isjpg, file):
+def check_rar(jpl, bf, noj, f):
     try:
-        with rarfile.RarFile(file) as MyRar:
+        with rarfile.RarFile(f) as MyRar:
             rarcontents = MyRar.namelist()
-            if isjpg(rarcontents):
-                jpg_list.append(file)
+        if isjpg(rarcontents):
+            jpl.append(f)
+        else:
+            nojpg.append(f)
+    except rarfile.BadRarFile:
+        try:
+            with ZipFile(f) as MyZip:
+                zipcontents = MyZip.namelist()
+            if isjpg(zipcontents):
+                renfile = f.replace(".cbr", ".cbz")
+                jpl.append(renfile)
+                os.rename(f, renfile)
             else:
-                nojpg.append(file)
-    except (rarfile.BadRarFile):
-        badfiles.append(file)
-    except Exception:
-        pass
+                noj.append(f)
+        except Exception:
+            badfiles.append(f)
+    return jpl, bf, noj, f
 
-def smaller(arc, NewZip):
-    if os.path.getsize(NewZip) < os.path.getsize(arc):
-        if arc.endswith('cbr'):
-            arc = arc.replace('.cbr', '.cbz')
-        if arc.endswith('rar'):
-            arc = arc.replace('.rar', '.cbz')
-        shutil.move(NewZip, arc)
+def smaller(_arc, nZip):
+    if os.path.getsize(nZip) < os.path.getsize(_arc):
+        if _arc.endswith('cbr'):
+            _arc = _arc.replace('.cbr', '.cbz')
+        if _arc.endswith('rar'):
+            _arc = _arc.replace('.rar', '.cbz')
+        shutil.move(nZip, _arc)
     else:
-        os.remove(NewZip)
+        os.remove(nZip)
     return arc
 
-def larger(conv, done, arc, NewZip):
-    os.remove(arc)
-    if arc.endswith('cbr'):
-        arc = arc.replace('.cbr', '.cbz')
-    if arc.endswith('rar'):
-        arc = arc.replace('.rar', '.cbz')
-    arc = arc.replace(conv, done)
-    shutil.move(NewZip, arc)
+def larger(_conv, _done, _arc, nZip):
+    os.remove(_arc)
+    if _arc.endswith('cbr'):
+        _arc = _arc.replace('.cbr', '.cbz')
+    if _arc.endswith('rar'):
+        _arc = _arc.replace('.rar', '.cbz')
+    _arc = _arc.replace(_conv, _done)
+    shutil.move(nZip, _arc)
 
-def imgs(temppath):
-    jpgimages = [str(pp) for pp in Path(temppath).glob("**/*.jpg")]
-    jpegimages = [str(pp) for pp in Path(temppath).glob("**/*.jpeg")]
-    pngimages = [str(pp) for pp in Path(temppath).glob("**/*.png")]
+def imgs(tpath):
+    jpgimages = [str(pp) for pp in Path(tpath).glob("**/*.jpg")]
+    jpegimages = [str(pp) for pp in Path(tpath).glob("**/*.jpeg")]
+    pngimages = [str(pp) for pp in Path(tpath).glob("**/*.png")]
     return jpgimages + pngimages + jpegimages
 
-def paths(winapi_path, arc):
-    splitpath = os.path.split(arc)
-    temppath = winapi_path(os.path.join(splitpath[0], 'temp'))
-    return splitpath,temppath
+def paths(_arc):
+    _splitpath = os.path.split(_arc)
+    _temppath = winapi_path(os.path.join(_splitpath[0], 'temp'))
+    return _splitpath,_temppath
 
-def extract_zip(arc, temppath):
+def extract_zip(_arc, tpath):
+    purgelist = ['zsou-nerd', 'zzz-innerdemons', 'zzz-mephisto', 'zzzzz', 'zwater', 'zzztol']
     MyArc = ZipFile(arc)
-    NewZip = f'{arc}.new'
+    nZip = f'{_arc}.new'
     with MyArc as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
             with contextlib.suppress(Exception):
-                zf.extract(member, temppath)
-    return NewZip
+                if all(s not in member.lower() for s in purgelist):
+                    zf.extract(member, tpath)
+    return nZip
 
-def extract_rar(arc, splitpath, temppath):
-    MyNewRar = rarfile.RarFile(arc)
-    if arc.endswith('cbr'):
-        NewZip = arc.replace('.cbr', '.cbz') + '.new'
-    if arc.endswith('rar'):
-        NewZip = arc.replace('.rar', '.cbz') + '.new'
-    rarpath = os.path.join(splitpath[0], 'temp')
+def extract_rar(_arc, spath, tpath):
+    purgelist = ['zsou-nerd', 'zzz-innerdemons', 'zzz-mephisto', 'zzzzz', 'zwater', 'zzztol']
+    MyNewRar = rarfile.RarFile(_arc)
+    if _arc.endswith('cbr'):
+        nZip = _arc.replace('.cbr', '.cbz') + '.new'
+    if _arc.endswith('rar'):
+        nZip = _arc.replace('.rar', '.cbz') + '.new'
+    rarpath = os.path.join(spath[0], 'temp')
     os.mkdir(rarpath)
     with MyNewRar as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
             with contextlib.suppress(Exception):
-                zf.extract(member, path=temppath)
-    return NewZip
+                if all(s not in member.lower() for s in purgelist):
+                    zf.extract(member, path=tpath)
+    return nZip
 
-def lower(root, files):
-    for file in files:
-        if file.startswith('._'):
-            os.remove(os.path.join(root, file))
-        elif file.endswith('JPG') or file.endswith('JPEG'):
-            os.rename(os.path.join(root, file), os.path.join(root, file.lower()))
+def lower(r, fs):
+    for f in fs:
+        if f.startswith('._'):
+            os.remove(os.path.join(r, f))
+        elif f.endswith('JPG') or f.endswith('JPEG'):
+            os.rename(os.path.join(r, f), os.path.join(r, f.lower()))
 
-def create_arc(temppath, archive):
-    for root, _, files in os.walk(temppath):
-        for file in tqdm(files, desc='Compressing', colour='cyan', leave=False):
-            f = os.path.join(root, file)
-            archive.write(f, os.path.relpath(f, temppath))
+def create_arc(tpath, _arc):
+    for r, _, fs in os.walk(tpath):
+        for f in tqdm(fs, desc='Compressing', colour='cyan', leave=False):
+            f = os.path.join(r, f)
+            _arc.write(f, os.path.relpath(f, tpath))
 
 for file in tqdm(file_list, desc='Searching comics', colour='green'):
     if ('.cbz' in file) or ('.zip' in file):
-        check_zip(jpg_list, badfiles, nojpg, isjpg, file)
-
+        jpg_list, badfiles, nojpg, file = check_zip(jpg_list, badfiles, nojpg, file)
     if ('.cbr' in file) or ('.rar' in file):
-        check_rar(jpg_list, badfiles, nojpg, isjpg, file)
-
+        jpg_list, badfiles, nojpg, file = check_rar(jpg_list, badfiles, nojpg, file)
 
 if len(badfiles) > 0:
     print('Moving ', len(badfiles), ' bad archives to "Bad Files":\n')
@@ -248,7 +257,7 @@ print(
 
 #Process Archives in jpg_list
 for arc in tqdm(jpg_list, desc='All Files', colour='green'):
-    splitpath, temppath = paths(winapi_path, arc)
+    splitpath, temppath = paths(arc)
     if arc.endswith('cbz') or arc.endswith('zip'):
         NewZip = extract_zip(arc, temppath)
     if arc.endswith('cbr') or arc.endswith('rar'):
