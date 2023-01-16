@@ -1,14 +1,14 @@
 import argparse
 import contextlib
 import os
+import shelve
 import shutil
 import time
-import shelve
-import filetype
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
 
+import filetype
 from PIL import Image
 from tqdm import tqdm
 from unrar import rarfile
