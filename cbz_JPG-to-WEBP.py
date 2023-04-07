@@ -4,6 +4,7 @@ import os
 import shelve
 import shutil
 import time
+from stat import S_IWUSR, S_IWGRP, S_IWOTH
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
@@ -22,10 +23,22 @@ my_parser.add_argument('-s', '--small', dest='small',
                        help='Keep smaller file', action='store_true')
 my_parser.add_argument('-m', '--maxsize', dest='maxsize',
                        help='Keep smaller file', action='store')
+my_parser.add_argument('-nm', '--nomon', dest='nomon',
+                       help='Use scripted with no monitor requirement.  Requires --path, --pathdone, and --pathbad during initial run.', action='store_true')
+my_parser.add_argument('-p', '--path', 
+                       help='Set absolute path for comics to be processed')
+my_parser.add_argument('-pd', '--pathdone', 
+                       help='Set path for where to store processed comics')
+my_parser.add_argument('-pb', '--pathbad', 
+                       help='Set path for where to store corrupt comics')
+args = my_parser.parse_args()
 
 args = my_parser.parse_args()
 backup = args.backup
 small = args.small
+nomon = args.nomon
+argslist = [args.path, args.pathdone, args.pathbad]
+
 maxsize = ''
 with contextlib.suppress(Exception):
     maxsize = (int(args.maxsize), int(args.maxsize))
@@ -40,13 +53,20 @@ try:
         pathbad = shelf["pathbad"]
 
 except KeyError:
+    if args.nomon and not all(argslist):
+        my_parser.error('The first use of --nomon requires you to set --path, --pathdone, and --pathbad')
     with shelve.open('cpaths', 'c') as shelf:
-        print('Select folder to scan for eComics...')
-        shelf["path"] = filedialog.askdirectory()
-        print('Select folder to place converted eComics...')
-        shelf["pathdone"] = filedialog.askdirectory()
-        print('Select folder to place corrupted eComics...')
-        shelf["pathbad"] = filedialog.askdirectory()
+        if not args.nomon:
+            print('Select folder to scan for eComics...')
+            shelf["path"] = filedialog.askdirectory()
+            print('Select folder to place converted eComics...')
+            shelf["pathdone"] = filedialog.askdirectory()
+            print('Select folder to place corrupted eComics...')
+            shelf["pathbad"] = filedialog.askdirectory()
+        if args.nomon:
+            shelf["path"] = args.path
+            shelf["pathdone"] = args.pathdone
+            shelf["pathbad"] = args.pathbad
         path = shelf["path"]
         pathdone = shelf["pathdone"]
         pathbad = shelf["pathbad"]
@@ -77,6 +97,16 @@ def winapi_path(dos_path):
     if wpath.startswith("\\\\"):
         return f"\\\\?\\UNC\\{wpath[2:]}"
     return f"\\\\?\\{wpath}"
+
+
+def remove_exif(image_name):
+    im = Image.open(image_name)
+    if not im.getexif():
+        return
+    data = list(im.getdata())
+    image_without_exif = Image.new(im.mode, im.size)
+    image_without_exif.putdata(data)
+    image_without_exif.save(image_name)
 
 
 def convert_image(image_path, image_type):
@@ -252,7 +282,9 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
         print('No images to convert')
         # shutil.rmtree(temppath)
         continue
-    for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False):
+    arcname = os.path.basename(arc).replace('.', ' ').split(" (", 1)[0]
+    for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False, postfix=arcname):
+        # remove_exif(image)
         if image.endswith('jpg'):
             convert_image(image, 'jpg')
 
@@ -271,6 +303,7 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     for file in images:
         if file.endswith(ext):
             path_to_file = os.path.join(temppath, file)
+            os.chmod(path_to_file, S_IWUSR|S_IWGRP|S_IWOTH)
             os.remove(path_to_file)
 
     with ZipFile(NewZip, 'w') as archive:
@@ -286,6 +319,7 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     else:
         larger(conv, done, arc, NewZip)
 
+    os.chmod(temppath, S_IWUSR|S_IWGRP|S_IWOTH)
     shutil.rmtree(temppath)
     time.sleep(3)
     # make out loop stay in a single tqdm line
