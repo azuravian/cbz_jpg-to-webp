@@ -4,6 +4,7 @@ import os
 import shelve
 import shutil
 import time
+import re
 from stat import S_IWUSR, S_IWGRP, S_IWOTH
 from pathlib import Path
 from tkinter import Tk, filedialog
@@ -198,7 +199,11 @@ def extract_zip(_arc, tpath):
     purgelist = ['zsou-nerd', 'zzz-innerdemons',
                  'zzz-mephisto', 'zzzzz', 'zwater', 'zzztol']
     MyArc = ZipFile(arc)
-    nZip = f'{_arc}.new'
+    nZip = (
+        f'{_arc}.new'
+        if _arc.endswith('cbz')
+        else re.sub(r'.{4}$', '.cbz', _arc) + '.new'
+    )
     with MyArc as zf:
         for member in tqdm(zf.namelist(), desc='Extracting', colour='blue', leave=False):
             with contextlib.suppress(Exception):
@@ -211,10 +216,11 @@ def extract_rar(_arc, spath, tpath):
     purgelist = ['zsou-nerd', 'zzz-innerdemons',
                  'zzz-mephisto', 'zzzzz', 'zwater', 'zzztol']
     MyNewRar = rarfile.RarFile(_arc)
-    if _arc.endswith('cbr'):
-        nZip = _arc.replace('.cbr', '.cbz') + '.new'
-    if _arc.endswith('rar'):
-        nZip = _arc.replace('.rar', '.cbz') + '.new'
+    nZip = (
+        f'{_arc}.new'
+        if _arc.endswith('cbz')
+        else re.sub(r'.{4}$', '.cbz', _arc) + '.new'
+    )
     rarpath = os.path.join(spath[0], 'temp')
     os.mkdir(rarpath)
     with MyNewRar as zf:
