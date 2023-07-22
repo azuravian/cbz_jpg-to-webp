@@ -11,10 +11,11 @@ from tkinter import Tk, filedialog
 from zipfile import ZipFile
 
 import filetype
-from PIL import Image
+from PIL import Image, ImageFile
 from tqdm import tqdm
 from unrar import rarfile
 
+ImageFile.LOAD_TRUNCATED_IMAGES=True
 my_parser = argparse.ArgumentParser(
     description='Find and convert comics from jpg to webp')
 
