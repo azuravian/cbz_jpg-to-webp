@@ -112,16 +112,17 @@ def remove_exif(image_name):
 
 
 def convert_image(image_path, image_type):
-    with contextlib.suppress(Exception):
-        im = Image.open(image)
+    try:
+        im = Image.open(image_path)
         im = im.convert('RGB')
-    if maxsize != '':
-        im.thumbnail(maxsize)
-    image_name = image_path.replace(image_type, 'webp')
-
-    with contextlib.suppress(Exception):
-        im.save(f"{image_name}", 'webp')
-
+        if maxsize != '':
+            im.thumbnail(maxsize)
+        image_name = image_path.replace(image_type, 'webp')
+        with contextlib.suppress(Exception):
+            im.save(f"{image_name}", 'webp')
+        return True
+    except Exception:
+        return False
 
 def isimg(zipcontents):
     ziplength = len(zipcontents) - 1
@@ -246,6 +247,13 @@ def create_arc(tpath, _arc):
             f = os.path.join(r, f)
             _arc.write(f, os.path.relpath(f, tpath))
 
+def corrupt(conv, bad, badfiles):
+    if len(badfiles) > 0:
+        print('Moving ', len(badfiles), ' bad archives to "Bad Files":\n')
+        for zfile in badfiles:
+            nfile = zfile.replace(conv, bad)
+            shutil.move(zfile, nfile)
+    badfiles = []
 
 for file in tqdm(file_list, desc='Searching comics', colour='green'):
     ftype = (filetype.guess(file)).mime
@@ -256,12 +264,7 @@ for file in tqdm(file_list, desc='Searching comics', colour='green'):
         jpg_list, badfiles, file = check_rar(
             jpg_list, badfiles, file)
 
-if len(badfiles) > 0:
-    print('Moving ', len(badfiles), ' bad archives to "Bad Files":\n')
-    for zfile in badfiles:
-        nfile = zfile.replace(conv, bad)
-        shutil.move(zfile, nfile)
-badfiles = []
+corrupt(conv, bad, badfiles)
 
 print(
     'Found ',
@@ -293,17 +296,19 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
     for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False, postfix=arcname):
         # remove_exif(image)
         if image.endswith('jpg'):
-            convert_image(image, 'jpg')
+            state = convert_image(image, 'jpg')
 
         if image.endswith('jpeg'):
-            convert_image(image, 'jpeg')
+            state = convert_image(image, 'jpeg')
 
         if image.endswith('png'):
-            convert_image(image, 'png')
+            state = convert_image(image, 'png')
 
         if image.endswith('webp'):
-            convert_image(image, 'webp')
-
+            state = convert_image(image, 'webp')
+        if state == False:
+            break
+    
     # delete original images
     ext = ('.jpg', '.jpeg', '.png', '.JPG',
            '.JPEG', '.PNG')
@@ -313,19 +318,22 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
             os.chmod(path_to_file, S_IWUSR|S_IWGRP|S_IWOTH)
             os.remove(path_to_file)
 
-    with ZipFile(NewZip, 'w') as archive:
-        create_arc(temppath, archive)
+    if state:
+        with ZipFile(NewZip, 'w') as archive:
+            create_arc(temppath, archive)
 
-    print('\nCleaning up...')
-    if backup:
-        print('Saving backup of ', splitpath[1])
-        shutil.copy2(arc, os.path.join(bupath, splitpath[1]))
+        print('\nCleaning up...')
+        if backup:
+            print('Saving backup of ', splitpath[1])
+            shutil.copy2(arc, os.path.join(bupath, splitpath[1]))
 
-    if small:
-        arc = smaller(arc, NewZip)
+        if small:
+            arc = smaller(arc, NewZip)
+        else:
+            larger(conv, done, arc, NewZip)
     else:
-        larger(conv, done, arc, NewZip)
-
+        badfiles.append(arc)
+        corrupt(conv, bad, badfiles)
     os.chmod(temppath, S_IWUSR|S_IWGRP|S_IWOTH)
     shutil.rmtree(temppath)
     time.sleep(3)
