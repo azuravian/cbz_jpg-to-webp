@@ -9,10 +9,12 @@ from stat import S_IWUSR, S_IWGRP, S_IWOTH
 from pathlib import Path
 from tkinter import Tk, filedialog
 from zipfile import ZipFile
+from multiprocessing import Pool
 
 import filetype
 from PIL import Image, ImageFile
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 from unrar import rarfile
 
 ImageFile.LOAD_TRUNCATED_IMAGES=True
@@ -110,7 +112,6 @@ def remove_exif(image_name):
     image_without_exif.putdata(data)
     image_without_exif.save(image_name)
 
-
 def convert_image(image_path, image_type):
     try:
         im = Image.open(image_path)
@@ -123,6 +124,24 @@ def convert_image(image_path, image_type):
         return True
     except Exception:
         return False
+
+def loop_images(images, arcname):
+    for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False, postfix=arcname):
+        # remove_exif(image)
+        if image.endswith('jpg'):
+            state = convert_image(image, 'jpg')
+
+        if image.endswith('jpeg'):
+            state = convert_image(image, 'jpeg')
+
+        if image.endswith('png'):
+            state = convert_image(image, 'png')
+
+        if image.endswith('webp'):
+            state = convert_image(image, 'webp')
+        if state == False:
+            break
+    return state
 
 def isimg(zipcontents):
     ziplength = len(zipcontents) - 1
@@ -292,22 +311,8 @@ for arc in tqdm(jpg_list, desc='All Files', colour='green'):
         print('No images to convert')
         # shutil.rmtree(temppath)
         continue
-    arcname = os.path.basename(arc).replace('.', ' ').split(" (", 1)[0]
-    for image in tqdm(images, desc='Converting Images', colour='yellow', leave=False, postfix=arcname):
-        # remove_exif(image)
-        if image.endswith('jpg'):
-            state = convert_image(image, 'jpg')
-
-        if image.endswith('jpeg'):
-            state = convert_image(image, 'jpeg')
-
-        if image.endswith('png'):
-            state = convert_image(image, 'png')
-
-        if image.endswith('webp'):
-            state = convert_image(image, 'webp')
-        if state == False:
-            break
+    arcname = os.path.basename(arc).replace('.', ' ').split(" (", 1)[0]    
+    state = loop_images(images, arcname)
     
     # delete original images
     ext = ('.jpg', '.jpeg', '.png', '.JPG',
